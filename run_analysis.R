@@ -13,55 +13,55 @@
 ##########################################################################################################
 
 
+# Step 1
+# to set my working directory
+setwd("C:/Users/t23bybh/Documents/UCI HAR Dataset")
 
+# load features, extract them and subset only the indeces of means and st devs
+featureNames <- read.table("features.txt")
+ourFeatures <- grep("std|mean", featureNames$V2)
 
-library(reshape2)
+# Step 2
+# load train and test features, extract them and subset only means and st devs
+trainFeatures <- read.table("train/X_train.txt")
+ourTrainFeatures <- trainFeatures[,ourFeatures]
+testFeatures <- read.table("test/X_test.txt")
+ourTestFeatures <- test.features[,ourFeatures]
 
-filename <- "getdata_dataset.zip"
+# Step 3
+# merge the train and test data sets
+totalFeatures <- rbind(ourTrainFeatures, ourTestFeatures)
+# add column names to the features
+colnames(totalFeatures) <- featureNames[ourFeatures, 2]
 
-## Download and unzip the dataset:
-if (!file.exists(filename)){
-  fileURL <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip "
-  download.file(fileURL, filename, method="curl")
-}  
-if (!file.exists("UCI HAR Dataset")) { 
-  unzip(filename) 
-}
+# Step 4
+# Read and merge the train and test activity 
+trainActivities <- read.table("train/y_train.txt")
+testActivities <- read.table("test/y_test.txt")
+totalActivities <- rbind(trainActivities, testActivities)
 
-# Load activity labels + features
-activityLabels <- read.table("UCI HAR Dataset/activity_labels.txt")
-activityLabels[,2] <- as.character(activityLabels[,2])
-features <- read.table("UCI HAR Dataset/features.txt")
-features[,2] <- as.character(features[,2])
+# extract activity labels and link to activity codes
+activityLabels <- read.table("activity_labels.txt")
+totalActivities$activity <- factor(totalActivities$V1, levels = activityLabels$V1, labels = activityLabels$V2)
 
-# Extract only the data on mean and standard deviation
-featuresWanted <- grep(".*mean.*|.*std.*", features[,2])
-featuresWanted.names <- features[featuresWanted,2]
-featuresWanted.names = gsub('-mean', 'Mean', featuresWanted.names)
-featuresWanted.names = gsub('-std', 'Std', featuresWanted.names)
-featuresWanted.names <- gsub('[-()]', '', featuresWanted.names)
+# Step 5
+# extract the train and test subject data and merge
+trainSubjects <- read.table("train/subject_train.txt")
+testSubjects <- read.table("test/subject_test.txt")
+totalSubjects <- rbind(trainSubjects, testSubjects)
 
+# Step 6
+# link the subjects to their activity
+subjectsActivities <- cbind(totalSubjects, totalActivities$activity)
+colnames(subjectsActivities) <- c("subjectID", "activity")
 
-# Load the datasets
-train <- read.table("UCI HAR Dataset/train/X_train.txt")[featuresWanted]
-trainActivities <- read.table("UCI HAR Dataset/train/Y_train.txt")
-trainSubjects <- read.table("UCI HAR Dataset/train/subject_train.txt")
-train <- cbind(trainSubjects, trainActivities, train)
+# Step 7
+# Combine the activity, ID and measurement in a data frame
+activityDF <- cbind(subjectsActivities, totalFeatures)
 
-test <- read.table("UCI HAR Dataset/test/X_test.txt")[featuresWanted]
-testActivities <- read.table("UCI HAR Dataset/test/Y_test.txt")
-testSubjects <- read.table("UCI HAR Dataset/test/subject_test.txt")
-test <- cbind(testSubjects, testActivities, test)
-
-# merge datasets and add labels
-allData <- rbind(train, test)
-colnames(allData) <- c("subject", "activity", featuresWanted.names)
-
-# turn activities & subjects into factors
-allData$activity <- factor(allData$activity, levels = activityLabels[,1], labels = activityLabels[,2])
-allData$subject <- as.factor(allData$subject)
-
-allData.melted <- melt(allData, id = c("subject", "activity"))
-allData.mean <- dcast(allData.melted, subject + activity ~ variable, mean)
-
-write.table(allData.mean, "data_tidy.txt", row.names = FALSE, quote = FALSE)
+# Step 8
+# create an independent tidy data set with the average of each variable 
+# for each activity and each subject
+result <- aggregate(activityDF[,3:(ncol(activityDF))], by = list(activityDF$subjectID, activityDF$activity), FUN = mean)
+colnames(result)[1:2] <- c("subject.id", "activity")
+write.table(result, file="data_tidy.txt", row.names = FALSE)
